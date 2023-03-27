@@ -74,14 +74,13 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
   let _requests = [];
 
   const hasNavigator = () => {
-    if (navigator?.geolocation) {
-      return true;
-    } else {
+    const isGeolocationEnabled = Boolean(navigator?.geolocation);
+    if (!isGeolocationEnabled) {
       console.warn(
         'If you are using React Native v0.60.0+ you must follow these instructions to enable currentLocation: https://git.io/Jf4AR',
       );
-      return false;
     }
+    return isGeolocationEnabled;
   };
 
   const buildRowsFromResults = (results) => {
@@ -109,22 +108,29 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
   };
 
   const getRequestUrl = (requestUrl) => {
-    if (requestUrl) {
-      if (requestUrl.useOnPlatform === 'all') {
-        return requestUrl.url;
-      }
-      if (requestUrl.useOnPlatform === 'web') {
-        return Platform.select({
-          web: requestUrl.url,
-          default: 'https://maps.googleapis.com/maps/api',
-        });
-      }
-    } else {
+    if (!requestUrl) {
       return 'https://maps.googleapis.com/maps/api';
     }
+
+    const { useOnPlatform, url } = requestUrl;
+
+    if (useOnPlatform === 'all') {
+      return url;
+    } else if (useOnPlatform === 'web') {
+      return Platform.select({
+        web: requestUrl.url,
+        default: 'https://maps.googleapis.com/maps/api',
+      });
+    }
+
+    return 'https://maps.googleapis.com/maps/api';
   };
 
-  const getRequestHeaders = (requestUrl) => {
+  const getRequestHeaders = async (request, requestUrl) => {
+    if (requestUrl.setDynamicHeaders) {
+      const dynamicHeaders = await requestUrl.setDynamicHeaders(request);
+      return dynamicHeaders || {};
+    }
     return requestUrl?.headers || {};
   };
 
@@ -152,6 +158,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
   useEffect(() => {
     // Update dataSource if props.predefinedPlaces changed
     setDataSource(buildRowsFromResults([]));
@@ -183,12 +190,12 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
         'This library cannot be used for the web unless you specify the requestUrl prop. See https://git.io/JflFv for more for details.',
       );
       return false;
-    } else {
-      return true;
     }
+
+    return true;
   };
 
-  const getCurrentLocation = () => {
+  const getCurrentLocation = async () => {
     let options = {
       enableHighAccuracy: false,
       timeout: 20000,
@@ -198,7 +205,6 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
     if (props.enableHighAccuracyLocation && Platform.OS === 'android') {
       options = {
         enableHighAccuracy: true,
-        timeout: 20000,
       };
     }
     const getCurrentPosition =
@@ -207,7 +213,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
 
     getCurrentPosition &&
       getCurrentPosition(
-        (position) => {
+        async (position) => {
           if (props.nearbyPlacesAPI === 'None') {
             let currentLocation = {
               description: props.currentLocationLabel,
@@ -222,7 +228,10 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
             _disableRowLoaders();
             props.onPress(currentLocation, currentLocation);
           } else {
-            _requestNearby(position.coords.latitude, position.coords.longitude);
+            await _requestNearby(
+              position.coords.latitude,
+              position.coords.longitude,
+            );
           }
         },
         (error) => {
@@ -233,7 +242,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       );
   };
 
-  const _onPress = (rowData) => {
+  const _onPress = async (rowData) => {
     if (rowData.isPredefinedPlace !== true && props.fetchDetails === true) {
       if (rowData.isLoading === true) {
         // already requesting
@@ -310,7 +319,10 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       );
 
       request.withCredentials = requestShouldUseWithCredentials();
-      setRequestHeaders(request, getRequestHeaders(props.requestUrl));
+      setRequestHeaders(
+        request,
+        await getRequestHeaders(request, props.requestUrl),
+      );
 
       request.send();
     } else if (rowData.isCurrentLocation === true) {
@@ -320,7 +332,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       setStateText(_renderDescription(rowData));
 
       delete rowData.isLoading;
-      getCurrentLocation();
+      await getCurrentLocation();
     } else {
       setStateText(_renderDescription(rowData));
 
@@ -395,7 +407,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
     return results;
   };
 
-  const _requestNearby = (latitude, longitude) => {
+  const _requestNearby = async (latitude, longitude) => {
     _abortRequests();
 
     if (
@@ -470,8 +482,10 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       request.open('GET', requestUrl);
 
       request.withCredentials = requestShouldUseWithCredentials();
-      setRequestHeaders(request, getRequestHeaders(props.requestUrl));
-
+      setRequestHeaders(
+        request,
+        await getRequestHeaders(request, props.requestUrl),
+      );
       request.send();
     } else {
       _results = [];
@@ -479,7 +493,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
     }
   };
 
-  const _request = (text) => {
+  const _request = async (text) => {
     _abortRequests();
     if (supportedPlatform() && text && text.length >= props.minLength) {
       const request = new XMLHttpRequest();
@@ -534,8 +548,10 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       );
 
       request.withCredentials = requestShouldUseWithCredentials();
-      setRequestHeaders(request, getRequestHeaders(props.requestUrl));
-
+      setRequestHeaders(
+        request,
+        await getRequestHeaders(request, props.requestUrl),
+      );
       request.send();
     } else {
       _results = [];
@@ -629,7 +645,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
           style={
             props.isRowScrollable ? { minWidth: '100%' } : { width: '100%' }
           }
-          onPress={() => _onPress(rowData)}
+          onPress={async () => await _onPress(rowData)}
           underlayColor={props.listUnderlayColor || '#c8c7cc'}
         >
           <View
@@ -891,6 +907,7 @@ GooglePlacesAutocomplete.propTypes = {
   renderRow: PropTypes.func,
   requestUrl: PropTypes.shape({
     url: PropTypes.string,
+    dymanicHeaders: PropTypes.func,
     useOnPlatform: PropTypes.oneOf(['web', 'all']),
     headers: PropTypes.objectOf(PropTypes.string),
   }),
