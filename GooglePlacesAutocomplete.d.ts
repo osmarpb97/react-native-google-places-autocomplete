@@ -364,9 +364,7 @@ interface RequestUrl {
   url: string;
   useOnPlatform: 'web' | 'all';
   headers?: Record<string, string>;
-  setDynamicHeaders?: (
-    request: XMLHttpRequest,
-  ) => Promise<Record<string, string>>;
+  setDynamicHeaders?: (requestUrl: string) => Promise<Record<string, string>>;
 }
 
 interface GooglePlacesAutocompleteProps {

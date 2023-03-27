@@ -126,12 +126,14 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
     return 'https://maps.googleapis.com/maps/api';
   };
 
-  const getRequestHeaders = async (request, requestUrl) => {
-    if (requestUrl.setDynamicHeaders) {
-      const dynamicHeaders = await requestUrl.setDynamicHeaders(request);
+  const getRequestHeaders = async (requestUrl, requestUrlParams) => {
+    if (requestUrlParams.setDynamicHeaders) {
+      const dynamicHeaders = await requestUrlParams.setDynamicHeaders(
+        requestUrl,
+      );
       return dynamicHeaders || {};
     }
-    return requestUrl?.headers || {};
+    return requestUrlParams?.headers || {};
   };
 
   const setRequestHeaders = (request, headers) => {
@@ -307,21 +309,21 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
         }
       };
 
-      request.open(
-        'GET',
+      const requestUrl =
         `${url}/place/details/json?` +
-          Qs.stringify({
-            key: props.query.key,
-            placeid: rowData.place_id,
-            language: props.query.language,
-            ...props.GooglePlacesDetailsQuery,
-          }),
-      );
+        Qs.stringify({
+          key: props.query.key,
+          placeid: rowData.place_id,
+          language: props.query.language,
+          ...props.GooglePlacesDetailsQuery,
+        });
+
+      request.open('GET', requestUrl);
 
       request.withCredentials = requestShouldUseWithCredentials();
       setRequestHeaders(
         request,
-        await getRequestHeaders(request, props.requestUrl),
+        await getRequestHeaders(requestUrl, props.requestUrl),
       );
 
       request.send();
@@ -484,7 +486,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
       request.withCredentials = requestShouldUseWithCredentials();
       setRequestHeaders(
         request,
-        await getRequestHeaders(request, props.requestUrl),
+        await getRequestHeaders(requestUrl, props.requestUrl),
       );
       request.send();
     } else {
@@ -539,18 +541,18 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
         setStateText(props.preProcess(text));
       }
 
-      request.open(
-        'GET',
+      const requestUrl =
         `${url}/place/autocomplete/json?input=` +
-          encodeURIComponent(text) +
-          '&' +
-          Qs.stringify(props.query),
-      );
+        encodeURIComponent(text) +
+        '&' +
+        Qs.stringify(props.query);
+
+      request.open('GET', requestUrl);
 
       request.withCredentials = requestShouldUseWithCredentials();
       setRequestHeaders(
         request,
-        await getRequestHeaders(request, props.requestUrl),
+        await getRequestHeaders(requestUrl, props.requestUrl),
       );
       request.send();
     } else {
